@@ -1,0 +1,586 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WhaleWatch</title>
+
+  <!-- Fonts (optional) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Domine:wght@400..700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="static/styles.css">
+</head>
+
+<body>
+  <!-- Header -->
+  <header class="nav" aria-label="Site header">
+    <a class="brand" href="/" aria-label="WhaleWatch home">
+      <img src="assets/logo.png" alt="Whale icon" loading="lazy" decoding="async" />
+    </a>
+    <a class="brand wordmark" href="/" aria-label="WhaleWatch wordmark">
+      <img src="assets/logo_words.png" alt="WhaleWatch" loading="lazy" decoding="async" />
+    </a>
+
+    <nav class="links" aria-label="Main">
+      <a href="/tracking.html">Tracking</a>
+      <a href="#">Conservation</a>
+      <a href="#">About Us</a>
+      <a href="#">Contact</a>
+      <a href="#" class="cta">Login</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <!-- Intro -->
+    <section id="intro" aria-labelledby="intro-title">
+      <div class="section-inner split">
+        <div class="col intro-copy">
+          <h1 id="intro-title">AI-powered, real-time detection of whale behaviors</h1>
+          <p>
+            WhaleWatch uses advanced AI technology to monitor whale populations and behaviors in real-time, aiding conservation efforts worldwide.
+          </p>
+          <a href="#" class="cta">Get Started</a>
+        </div>
+
+        <!-- Responsive rounded video -->
+        <div class="col intro-media">
+          <div class="video-wrap">
+            <video class="intro-video"
+                   src="whale_demo.mp4"
+                   autoplay
+                   muted
+                   loop
+                   playsinline
+                   poster="whale-poster.jpg"
+                   aria-label="Demo of WhaleWatch in action">
+              Sorry, your browser doesn’t support embedded videos.
+            </video>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tracking (media left, text right) -->
+    <section id="tracking" aria-labelledby="tracking-title">
+      <div class="section-inner split">
+        <img id="tracking-media" src="pictures/whale.png" alt="Whale tracking visualization" loading="lazy" decoding="async"/>
+
+        <div class="col tracking-text">
+          <h2 id="tracking-title">Advanced tracking technology</h2>
+          <p class="lead">
+            Lorem ipsum dolor sit amet consectetur adipisicing elit. Eligendi dolore dolor quae neque maiores cum molestias quis recusandae eveniet laborum rem, dignissimos aut consectetur quod harum! Repellendus culpa iste quod.
+          </p>
+          <a href="#" class="cta">Start Tracking</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Behavior: centered 5-up strip with wrap arrows -->
+<!-- Behavior: centered 5-up strip with wrap arrows -->
+<section id="behavior" aria-labelledby="behavior-title">
+  <div class="section-inner behavior-new">
+    <header class="behavior-header">
+      <h2 id="behavior-title">Behavior detection</h2>
+      <p class="lead">Explore the common whale behaviors that our system can detect.</p>
+    </header>
+
+    <div class="behavior-row" aria-roledescription="carousel" aria-label="Whale behaviors" tabindex="0">
+      <!-- Left arrow (moved OUTSIDE .beh2-viewport) -->
+      <button class="beh2-nav beh2-prev" aria-label="Previous behaviors" type="button" title="Previous">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+          <path d="M15.5 4.5L8 12l7.5 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+
+      <!-- Viewport now ONLY wraps the track/cards -->
+      <div class="beh2-viewport" aria-hidden="false">
+        <!-- Track: JS centers cards around the middle -->
+        <ul class="beh2-track" role="list" aria-live="off">
+          <!-- 1. Breaching -->
+          <li class="beh2-card" tabindex="0">
+            <div class="flip-card">
+              <div class="flip-inner">
+                <!-- FRONT -->
+                <figure class="face front">
+                  <img src="pictures/ex_beh.png" alt="Breaching whale" loading="lazy" decoding="async">
+                </figure>
+                <!-- BACK -->
+                <div class="face back">
+                  <video autoplay muted loop playsinline>
+                    <source src="whale_demo.mp4" type="video/mp4">
+                  </video>
+                  <p class="beh2-desc">
+                    A whale launches most of its body out of the water, often followed by a splashy landing.
+                    May be used for communication, play, or removing parasites.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <!-- Label OUTSIDE flip-inner -->
+            <figcaption class="beh2-name">Breaching</figcaption>
+          </li>
+          <!-- 2. Tail Fluke Display -->
+          <li class="beh2-card" tabindex="0">
+            <div class="flip-card">
+              <div class="flip-inner">
+                <figure class="face front">
+                  <img src="pictures/ex_beh.png" alt="Tail fluke display" loading="lazy" decoding="async">
+                </figure>
+                <div class="face back">
+                  <video autoplay muted loop playsinline>
+                    <source src="whale_demo.mp4" type="video/mp4">
+                  </video>
+                  <p class="beh2-desc">
+                    A beluga swims steadily from one place to another.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <figcaption class="beh2-name">Traveling</figcaption>
+          </li>
+
+          <!-- 3. Mother & Calf Association -->
+          <li class="beh2-card" tabindex="0">
+            <div class="flip-card">
+              <div class="flip-inner">
+                <figure class="face front">
+                  <img src="pictures/ex_beh.png" alt="Mother and calf close together" loading="lazy" decoding="async">
+                </figure>
+                <div class="face back">
+                  <video autoplay muted loop playsinline>
+                    <source src="whale_demo.mp4" type="video/mp4">
+                  </video>
+                  <p class="beh2-desc">
+                    The whale turns onto its side and displays the side of its body.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <figcaption class="beh2-name">Lateral presentation</figcaption>
+          </li>
+
+          <!-- 4. Surface Feeding -->
+          <li class="beh2-card" tabindex="0">
+            <div class="flip-card">
+              <div class="flip-inner">
+                <figure class="face front">
+                  <img src="pictures/ex_beh.png" alt="Whale feeding at surface" loading="lazy" decoding="async">
+                </figure>
+                <div class="face back">
+                  <video autoplay muted loop playsinline>
+                    <source src="whale_demo.mp4" type="video/mp4">
+                  </video>
+                  <p class="beh2-desc">
+                    One whale gently or firmly closes its mouth on another whale or object.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <figcaption class="beh2-name">Bite</figcaption>
+          </li>
+
+          <!-- 5. Spyhopping -->
+          <li class="beh2-card" tabindex="0">
+            <div class="flip-card">
+              <div class="flip-inner">
+                <figure class="face front">
+                  <img src="pictures/ex_beh.png" alt="Whale rising vertically to look" loading="lazy" decoding="async">
+                </figure>
+                <div class="face back">
+                  <video autoplay muted loop playsinline>
+                    <source src="whale_demo.mp4" type="video/mp4">
+                  </video>
+                  <p class="beh2-desc">
+                    A whale forcefully hits another whale using its body.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <figcaption class="beh2-name">Body slam</figcaption>
+          </li>
+
+          <!-- 6. Pectoral Fin Slap -->
+          <li class="beh2-card" tabindex="0">
+            <div class="flip-card">
+              <div class="flip-inner">
+                <figure class="face front">
+                  <img src="pictures/ex_beh.png" alt="Pectoral fin slap" loading="lazy" decoding="async">
+                </figure>
+                <div class="face back">
+                  <video autoplay muted loop playsinline>
+                    <source src="whale_demo.mp4" type="video/mp4">
+                  </video>
+                  <p class="beh2-desc">
+                    The whale releases a burst of bubbles, often directed at another whale.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <figcaption class="beh2-name">Bubble blast</figcaption>
+          </li>
+
+          <!-- 7. Tail Slap -->
+          <li class="beh2-card" tabindex="0">
+            <div class="flip-card">
+              <div class="flip-inner">
+                <figure class="face front">
+                  <img src="pictures/ex_beh.png" alt="Tail slap on surface" loading="lazy" decoding="async">
+                </figure>
+                <div class="face back">
+                  <video autoplay muted loop playsinline>
+                    <source src="whale_demo.mp4" type="video/mp4">
+                  </video>
+                  <p class="beh2-desc">
+                    Mating behavior between a male and a female whale.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <figcaption class="beh2-name">Copulation</figcaption>
+          </li>
+
+          <!-- 8. Group Aggregation -->
+          <li class="beh2-card" tabindex="0">
+            <div class="flip-card">
+              <div class="flip-inner">
+                <figure class="face front">
+                  <img src="pictures/ex_beh.png" alt="Group of whales" loading="lazy" decoding="async">
+                </figure>
+                <div class="face back">
+                  <video autoplay muted loop playsinline>
+                    <source src="whale_demo.mp4" type="video/mp4">
+                  </video>
+                  <p class="beh2-desc">
+                    Two whales press their bodies closely together.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <figcaption class="beh2-name">Embrace</figcaption>
+          </li>
+
+          <!-- 9. Spouting / Blowing -->
+          <li class="beh2-card" tabindex="0">
+            <div class="flip-card">
+              <div class="flip-inner">
+                <figure class="face front">
+                  <img src="pictures/ex_beh.png" alt="Whale spout exhalation" loading="lazy" decoding="async">
+                </figure>
+                <div class="face back">
+                  <video autoplay muted loop playsinline>
+                    <source src="whale_demo.mp4" type="video/mp4">
+                  </video>
+                  <p class="beh2-desc">
+                    The whale opens its mouth wide, sometimes to show teeth or communicate.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <figcaption class="beh2-name">Spouting</figcaption>
+          </li>
+
+          <!-- 10. Lunge Feeding -->
+          <li class="beh2-card" tabindex="0">
+            <div class="flip-card">
+              <div class="flip-inner">
+                <figure class="face front">
+                  <img src="pictures/ex_beh.png" alt="Side lunge feeding" loading="lazy" decoding="async">
+                </figure>
+                <div class="face back">
+                  <video autoplay muted loop playsinline>
+                    <source src="whale_demo.mp4" type="video/mp4">
+                  </video>
+                  <p class="beh2-desc">
+                    Two whales face each other closely, often touching or pushing.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <figcaption class="beh2-name">Head-to-head</figcaption>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Right arrow (moved OUTSIDE .beh2-viewport) -->
+      <button class="beh2-nav beh2-next" aria-label="Next behaviors" type="button" title="Next">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+          <path d="M8.5 4.5L16 12l-7.5 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</section>
+
+
+    <!-- Conservation -->
+<!-- Conservation -->
+<section id="conservation" aria-labelledby="conservation-title">
+  <div class="section-inner conservation-inner">
+    <h2 id="conservation-title">Helping conservation efforts</h2>
+    <p class="conservation-text">
+      The use of technology for monitoring marine species, particularly cetaceans, has become
+      an increasingly valuable tool in conservation and ecological research.
+    </p>
+    
+    <div class="stats-grid">
+      <!-- Card 1 -->
+      <div class="stat-card">
+        <p class="stat-label">Whales Monitored Globally</p>
+        <p class="stat-number">50,000+</p>
+        <p class="stat-description">WhaleWatch tracks over 50,000 individual whales across the world's oceans.</p>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="stat-card">
+        <p class="stat-label">Real-time Detections Daily</p>
+        <p class="stat-number">10,000+</p>
+        <p class="stat-description">Our AI system processes over 10,000 whale behavior detections every day.</p>
+      </div>
+
+      <!-- Card 3 -->
+      <div class="stat-card">
+        <p class="stat-label">Conservation Partners</p>
+        <p class="stat-number">200+</p>
+        <p class="stat-description">WhaleWatch collaborates with over 200 organizations worldwide dedicated to marine protection.</p>
+      </div>
+
+      <!-- Card 4 -->
+      <div class="stat-card">
+        <p class="stat-label">Data Accuracy Rate</p>
+        <p class="stat-number">97%</p>
+        <p class="stat-description">Our AI-powered detection system achieves a 97% accuracy rate in identifying whale behaviors.</p>
+      </div>
+
+      <!-- Card 5 -->
+      <div class="stat-card">
+        <p class="stat-label">Ocean Coverage</p>
+        <p class="stat-number">6 Continents</p>
+        <p class="stat-description">WhaleWatch operates monitoring systems across 6 continents protecting critical whale habitats.</p>
+      </div>
+    </div>
+
+    <div><a href="#" class="cta">Learn More</a></div>
+  </div>
+</section>
+
+    <!-- About -->
+    <section id="about" aria-labelledby="about-title">
+      <div class="section-inner">
+        <h2 id="about-title">About Us</h2>
+        <ul class="team" aria-label="Team members">
+          <li class="member">
+            <figure>
+              <img
+                src="pictures/erin_picture.png"
+                alt="Portrait of Erin"
+                width="180"
+                height="240"
+                loading="lazy"
+              />
+              <figcaption>
+                <div class="name-row">
+                  <h3 class="name">Erin</h3>
+                </div>
+                <p class="role">Web Application Lead</p>
+                <p class="description">
+                  Erin leads the development of WhaleWatch’s web application, ensuring a seamless user experience.
+                </p>
+                <p class="email">
+                  <a href="mailto:erin@whalewatch.org">erin@whalewatch.org</a>
+                </p>
+                <p>
+                  <nav class="icons" aria-label="Erin social links">
+                    <a href="https://www.linkedin.com/in/erin" aria-label="Erin on LinkedIn" target="_blank" rel="noopener">
+                      <img src="icons/linkedin.png" alt="" width="26" height="26" loading="lazy" decoding="async" />
+                    </a>
+                    <a href="https://github.com/erin" aria-label="Erin on GitHub" target="_blank" rel="noopener">
+                      <img src="icons/github.png" alt="" width="26" height="26" loading="lazy" decoding="async" />
+                    </a>
+                  </nav>
+                </p>
+              </figcaption>
+            </figure>
+          </li>
+
+          <li class="member">
+            <figure>
+              <img
+                src="pictures/zach_picture.png"
+                alt="Portrait of Zachary"
+                width="180"
+                height="240"
+                loading="lazy"
+              />
+              <figcaption>
+                <div class="name-row">
+                  <h3 class="name">Zachary</h3>
+                </div>
+                <p class="role">Tracking System Lead</p>
+                <p class="description">
+                  Zachary leads WhaleWatch’s tracking system, ensuring accurate, real-time data collection.
+                </p>
+                <p class="email">
+                  <a href="mailto:zachary@whalewatch.org">zachary@whalewatch.org</a>
+                </p>
+                <p>
+                  <nav class="icons" aria-label="Zachary social links">
+                    <a href="https://www.linkedin.com/in/zachary" aria-label="Zachary on LinkedIn" target="_blank" rel="noopener">
+                      <img src="icons/linkedin.png" alt="" width="26" height="26" loading="lazy" decoding="async" />
+                    </a>
+                    <a href="https://github.com/zachary" aria-label="Zachary on GitHub" target="_blank" rel="noopener">
+                      <img src="icons/github.png" alt="" width="26" height="26" loading="lazy" decoding="async" />
+                    </a>
+                  </nav>
+                </p>
+              </figcaption>
+            </figure>
+          </li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">© WhaleWatch</footer>
+
+  <!-- Behavior strip JS (reads CSS variables for layout; wrap-around nav) -->
+  <script>
+    // Behavior strip JS – centered strip with slide animation
+(function () {
+  const row = document.querySelector('#behavior .behavior-row');
+  if (!row) return;
+
+  const viewport = row.querySelector('.beh2-viewport');
+  const track    = row.querySelector('.beh2-track');
+  const cards    = Array.from(track.querySelectorAll('.beh2-card'));
+  const prev     = row.querySelector('.beh2-prev');
+  const next     = row.querySelector('.beh2-next');
+  if (!cards.length || !prev || !next) return;
+
+  let idx = 0;
+  const N = cards.length;
+  let isAnimating = false;
+
+  const mod = (n, m) => (n % m + m) % m;
+  const delta = (from, to) => {
+    const fwd  = mod(to - from, N);
+    const back = fwd - N;
+    return Math.abs(back) < fwd ? back : fwd;
+  };
+
+  function cssNum(el, varName, fallback) {
+    const v = getComputedStyle(el).getPropertyValue(varName).trim();
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? n : fallback;
+  }
+
+  function render() {
+    const visible = Math.max(
+      1,
+      parseInt(getComputedStyle(viewport).getPropertyValue('--visible')) || 4
+    );
+    const cardW = cssNum(viewport, '--card-w', 180);
+    const gap   = cssNum(viewport, '--gap', 16);
+    const step  = cardW + gap;
+
+    const leftCount  = Math.floor(visible / 2);
+    const rightCount = visible - 1 - leftCount;
+
+    const totalWidth = visible * cardW + (visible - 1) * gap;
+    track.style.position    = 'relative';
+    track.style.width       = totalWidth + 'px';
+    track.style.height      = cardW + 'px';
+    track.style.marginLeft  = 'auto';
+    track.style.marginRight = 'auto';
+
+    cards.forEach((el, k) => {
+      const d      = delta(idx, k);
+      const inView = d >= -leftCount && d <= rightCount;
+
+      el.style.position = 'absolute';
+      el.style.top      = '0';
+      el.style.width    = cardW + 'px';
+      el.style.height   = cardW + 'px';
+
+      if (inView) {
+        const indexInStrip = d + leftCount;
+        const x = indexInStrip * step;
+
+        el.setAttribute('aria-hidden', 'false');
+        el.style.left          = '0';
+        el.style.transform     = `translateX(${x}px)`;
+        el.style.opacity       = '1';
+        el.style.pointerEvents = 'auto';
+        el.style.filter        = 'none';
+        el.style.zIndex        = String(100 - Math.abs(d));
+      } else {
+        const side = d > 0 ? 1 : -1;
+        const x = (visible + 1.05) * step * side;
+
+        el.setAttribute('aria-hidden', 'true');
+        el.style.left          = '0';
+        el.style.transform     = `translateX(${x}px)`;
+        el.style.opacity       = '0';
+        el.style.pointerEvents = 'none';
+        el.style.filter        = 'grayscale(30%)';
+        el.style.zIndex        = '1';
+      }
+    });
+  }
+
+  function go(deltaBy) {
+    if (isAnimating) return;
+    isAnimating = true;
+
+    idx = mod(idx + deltaBy, N);
+    render();
+
+    setTimeout(() => {
+      isAnimating = false;
+    }, 350);
+  }
+
+  prev.addEventListener('click', () => go(-1));
+  next.addEventListener('click', () => go(+1));
+
+  row.addEventListener('keydown', (evt) => {
+    if (evt.key === 'ArrowRight') {
+      evt.preventDefault();
+      go(+1);
+    } else if (evt.key === 'ArrowLeft') {
+      evt.preventDefault();
+      go(-1);
+    }
+  });
+
+  track.addEventListener('wheel', (evt) => {
+    evt.preventDefault();
+    if (evt.deltaY > 0) {
+      go(+1);
+    } else if (evt.deltaY < 0) {
+      go(-1);
+    }
+  }, { passive: false });
+
+  row.addEventListener('wheel', (evt) => {
+    evt.preventDefault();
+    if (evt.deltaY > 0) {
+      go(+1);
+    } else if (evt.deltaY < 0) {
+      go(-1);
+    }
+  }, { passive: false });
+
+  render();
+  let resId;
+  window.addEventListener('resize', () => {
+    cancelAnimationFrame(resId);
+    resId = requestAnimationFrame(render);
+  });
+})();
+  </script>
+</body>
+</html>
