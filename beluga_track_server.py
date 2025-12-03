@@ -91,7 +91,7 @@ def ensure_model_downloaded():
     print("✅ Model download complete.", flush=True)
 
 def main():
-    # Expect: python beluga_track_server.py input_video.mp4 output_video.mp4 output.csv
+    # Expect: python beluga_track_server.py input_video.mp4 output_video.mp4 output_csv.csv
     if len(sys.argv) != 4:
         print("Usage: python beluga_track_server.py <input_video> <output_video> <output_csv>", file=sys.stderr)
         sys.exit(1)
@@ -169,4 +169,63 @@ def main():
 
                         x1, y1, x2, y2 = map(int, box.xyxy[0])
 
-                        if
+                        # Smooth boxes per track id
+                        if track_id in smoothing_buffer:
+                            px1, py1, px2, py2 = smoothing_buffer[track_id]
+                            x1 = smooth(px1, x1); y1 = smooth(py1, y1)
+                            x2 = smooth(px2, x2); y2 = smooth(py2, y2)
+                        smoothing_buffer[track_id] = [x1, y1, x2, y2]
+
+                        whale_class = safe_class_name(class_id)
+                        beh_name = 'surfacing' if whale_class == 'Adult' else 'nursing'
+                        conf_val = float(box.conf[0]) if hasattr(box, "conf") and box.conf is not None else 0.0
+
+                        label_text = f"{whale_class} ID:{track_id}"
+                        box_color = CALF_BLUE if whale_class == "Calf" else ADULT_GREEN
+
+                        draw_box_with_label(frame, (x1, y1, x2, y2), label_text, box_color=box_color)
+
+                        tracking_rows.append([
+                            frame_idx, t_sec, track_id, whale_class,
+                            x1, y1, x2, y2, beh_name, conf_val
+                        ])
+
+            writer.write(frame)
+
+            # Periodic CSV write to avoid losing everything if something crashes
+            if frame_idx % CSV_EVERY_N_FRAMES == 0 and tracking_rows:
+                df = pd.DataFrame(
+                    tracking_rows,
+                    columns=["Frame", "Time (s)", "Track_ID", "Class",
+                             "X1", "Y1", "X2", "Y2", "Behavior", "Conf"]
+                )
+                df.to_csv(output_csv, index=False)
+
+            if frame_idx % 50 == 0:
+                print(f"Processed frame {frame_idx}...", flush=True)
+
+        # Final CSV write
+        if tracking_rows:
+            df = pd.DataFrame(
+                tracking_rows,
+                columns=["Frame", "Time (s)", "Track_ID", "Class",
+                         "X1", "Y1", "X2", "Y2", "Behavior", "Conf"]
+            )
+            df.to_csv(output_csv, index=False)
+
+        print("✅ Tracking complete.")
+        print(f"✅ Annotated video saved: {output_video}")
+        print(f"✅ Tracking CSV saved:   {output_csv}")
+
+    except Exception as e:
+        print(f"❌ Error during tracking: {e}", file=sys.stderr)
+        cap.release()
+        writer.release()
+        sys.exit(1)
+
+    cap.release()
+    writer.release()
+    sys.exit(0)
+
+if __name__ == "__main__":
+    main()
