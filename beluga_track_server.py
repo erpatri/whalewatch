@@ -146,6 +146,13 @@ def main():
     smoothing_buffer = {}
     tracking_rows = []
 
+        frame_idx = 0
+    smoothing_buffer = {}
+    tracking_rows = []
+
+    # Optional: limit frames so it doesn't run forever on big videos
+    MAX_FRAMES = 300  # ~10s at 30fps; increase later if you want
+
     try:
         while True:
             ok, frame = cap.read()
@@ -155,7 +162,16 @@ def main():
             frame_idx += 1
             t_sec = frame_idx / fps
 
-            # Little debug text so you *know* this is the processed video
+            # Stop after MAX_FRAMES (so tracking completes in reasonable time)
+            if frame_idx > MAX_FRAMES:
+                print(f"Stopping early after {MAX_FRAMES} frames.", flush=True)
+                break
+
+            # OPTIONAL: process only every 2nd/3rd frame to speed things up
+            # if frame_idx % 2 != 0:
+            #     continue
+
+            # Small debug overlay so you know it's the processed video
             cv2.putText(
                 frame,
                 f"Beluga tracking frame {frame_idx}",
@@ -167,6 +183,7 @@ def main():
                 cv2.LINE_AA,
             )
 
+            # Run YOLO tracking
             results = model.track(frame, persist=True, tracker=TRACKER_PATH)
 
             if results:
@@ -181,7 +198,7 @@ def main():
 
                         x1, y1, x2, y2 = map(int, box.xyxy[0])
 
-                        # Smooth boxes per track id
+                        # Smooth box positions
                         if track_id in smoothing_buffer:
                             px1, py1, px2, py2 = smoothing_buffer[track_id]
                             x1 = smooth(px1, x1); y1 = smooth(py1, y1)
@@ -202,6 +219,7 @@ def main():
                             x1, y1, x2, y2, beh_name, conf_val
                         ])
 
+            # 👉 THIS is critical: write the (possibly annotated) frame *inside* the loop
             writer.write(frame)
 
             # Periodic CSV write
@@ -216,7 +234,7 @@ def main():
             if frame_idx % 50 == 0:
                 print(f"Processed frame {frame_idx}...", flush=True)
 
-        # Final CSV write
+        # Final CSV write after loop
         if tracking_rows:
             df = pd.DataFrame(
                 tracking_rows,
@@ -228,6 +246,7 @@ def main():
         print("✅ Tracking complete.")
         print(f"✅ Annotated video saved: {output_video}")
         print(f"✅ Tracking CSV saved:   {output_csv}")
+
 
     except Exception as e:
         print(f"❌ Error during tracking: {e}", file=sys.stderr)
