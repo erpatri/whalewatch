@@ -1,4 +1,5 @@
 // server.js
+
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
@@ -9,7 +10,7 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Allow your local frontend (relax now, lock down later if you like)
+// Allow your local/frontend origin (you can tighten this later)
 app.use(cors({ origin: '*' }));
 
 // ---- UPLOAD DIRECTORY ----
@@ -44,9 +45,11 @@ const upload = multer({
 });
 
 // ---- SERVE UPLOADED VIDEOS ----
+// e.g. https://whalewatch.onrender.com/videos/<filename>.mp4
 app.use('/videos', express.static(UPLOAD_DIR));
 
-// ---- DEBUG ROUTE TO SEE FILES ON RENDER ----
+// ---- DEBUG PAGE TO SEE FILES ON RENDER ----
+// https://whalewatch.onrender.com/debug/videos
 app.get('/debug/videos', (req, res) => {
   fs.readdir(UPLOAD_DIR, (err, files) => {
     if (err) {
@@ -68,12 +71,15 @@ app.get('/debug/videos', (req, res) => {
     const html = `
       <h1>Uploaded videos</h1>
       <table border="1" cellpadding="6">
-        <tr><th>File</th><th>Size (bytes)</th><th>Link</th></tr>
+        <tr><th>File</th><th>Size (bytes)</th><th>Links</th></tr>
         ${rows.map(r =>
           `<tr>
             <td>${r.name}</td>
             <td>${r.size}</td>
-            <td><a href="/videos/${r.name}" target="_blank">open</a></td>
+            <td>
+              <a href="/videos/${r.name}" target="_blank">open</a> |
+              <a href="/download/${r.name}">download</a>
+            </td>
           </tr>`
         ).join('')}
       </table>
@@ -82,7 +88,28 @@ app.get('/debug/videos', (req, res) => {
   });
 });
 
+// ---- RAW FILE DOWNLOAD ROUTE ----
+// https://whalewatch.onrender.com/download/<filename>
+app.get('/download/:name', (req, res) => {
+  const filename = req.params.name;
+  const filePath = path.join(UPLOAD_DIR, filename);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send('File not found');
+  }
+
+  res.download(filePath, filename, (err) => {
+    if (err) {
+      console.error('Error sending file for download:', err);
+      if (!res.headersSent) {
+        res.status(500).send('Error downloading file');
+      }
+    }
+  });
+});
+
 // ---- MAIN /track ENDPOINT ----
+// This is what your frontend calls with the FormData
 app.post('/track', upload.single('video'), (req, res) => {
   try {
     if (!req.file) {
@@ -96,7 +123,6 @@ app.post('/track', upload.single('video'), (req, res) => {
       filename: req.file.filename
     });
 
-    // Just return the raw uploaded video for now
     const streamUrl = `/videos/${req.file.filename}`;
     res.json({ stream_url: streamUrl });
   } catch (err) {
