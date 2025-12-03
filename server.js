@@ -113,7 +113,6 @@ app.get('/download/:name', (req, res) => {
 function runTrackerOnVideo(inputPath, baseName, res) {
   const pythonScript = path.join(__dirname, 'beluga_track_server.py');
 
-  // Output filenames (in the same UPLOAD_DIR so they are served by /videos + /download)
   const trackedVideoFilename = baseName + '_tracked.mp4';
   const csvFilename = baseName + '_tracking.csv';
 
@@ -123,8 +122,8 @@ function runTrackerOnVideo(inputPath, baseName, res) {
   const pyArgs = [pythonScript, inputPath, trackedVideoPath, csvPath];
   console.log('Running Python tracker:', pyArgs.join(' '));
 
-  // use 'python3' on many Linux hosts; if that fails, you can swap back to 'python'
-  const py = spawn('python3', pyArgs, { cwd: __dirname });
+  // Try 'python' first; if logs later say ENOENT, switch to 'python3'
+  const py = spawn('python', pyArgs, { cwd: __dirname });
 
   let pyStdout = '';
   let pyStderr = '';
@@ -144,7 +143,9 @@ function runTrackerOnVideo(inputPath, baseName, res) {
   py.on('error', (err) => {
     console.error('Failed to start Python process:', err);
     if (!res.headersSent) {
-      res.status(500).json({ error: 'Failed to start whale tracking process' });
+      return res
+        .status(500)
+        .json({ error: 'Failed to start whale tracking process', details: String(err) });
     }
   });
 
@@ -152,7 +153,11 @@ function runTrackerOnVideo(inputPath, baseName, res) {
     if (code !== 0) {
       console.error('Python tracker exited with code', code, pyStderr);
       if (!res.headersSent) {
-        return res.status(500).json({ error: 'Error running whale tracking on server' });
+        // send back stderr so you can see the real Python error in the browser dev tools
+        return res.status(500).json({
+          error: 'Error running whale tracking on server',
+          details: pyStderr.slice(0, 2000) || `exit code ${code}`
+        });
       }
       return;
     }
@@ -165,13 +170,14 @@ function runTrackerOnVideo(inputPath, baseName, res) {
 
     if (!res.headersSent) {
       res.json({
-        stream_url: streamUrl,       // used by <video> player
-        video_url: videoDownloadUrl, // for "Download video" button
-        csv_url: csvDownloadUrl      // for "Download data" button
+        stream_url: streamUrl,
+        video_url: videoDownloadUrl,
+        csv_url: csvDownloadUrl
       });
     }
   });
 }
+
 
 // ---- MAIN /track ENDPOINT ----
 app.post('/track', upload.single('video'), (req, res) => {
