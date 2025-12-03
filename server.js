@@ -130,13 +130,14 @@ app.post('/track', upload.single('video'), (req, res) => {
 
     // Spawn ffmpeg to convert to H.264/AAC mp4
     const ffmpegArgs = [
-      '-y',               // overwrite if exists
-      '-i', inputPath,    // input file
+      '-y',
+      '-i', inputPath,
+      '-vf', 'scale=720:-2',  
       '-c:v', 'libx264',
-      '-preset', 'veryfast',
-      '-crf', '23',
+      '-preset', 'superfast',  
+      '-crf', '25',           
       '-c:a', 'aac',
-      '-b:a', '128k',
+      '-b:a', '96k',
       '-movflags', '+faststart',
       outputPath
     ];
