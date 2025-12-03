@@ -4,24 +4,27 @@ import sys
 import os
 import cv2
 import numpy as np
-import datetime
 import pandas as pd
+import requests
 from ultralytics import YOLO
 
 # ========= CONFIG =========
-# Make model / tracker paths RELATIVE so they work on Render or any server.
-# Place your best.pt and bytetrack_whales.yaml in a "models" folder in the repo.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(BASE_DIR, "models", "best.pt")
+
+# Model will be stored in /tmp so it's writeable in cloud envs
+MODEL_DIR = os.environ.get("BELUGA_MODEL_DIR", "/tmp/beluga_models")
+MODEL_PATH = os.path.join(MODEL_DIR, "best.pt")
+
+# Tracker YAML (small) can be committed to your repo
 TRACKER_PATH = os.path.join(BASE_DIR, "models", "bytetrack_whales.yaml")
 
 CLASS_NAMES = ["Adult", "Calf"]
 SMOOTHING_ALPHA = 0.30
-CSV_EVERY_N_FRAMES = 100   # controls how often CSV is overwritten while processing
+CSV_EVERY_N_FRAMES = 100
 
 # === Colors (BGR) ===
-ADULT_GREEN = (147, 205, 108)   # light green
-CALF_BLUE   = (180, 163, 117)   # light blue in BGR
+ADULT_GREEN = (147, 205, 108)
+CALF_BLUE   = (180, 163, 117)
 TEXT_COLOR = (0, 0, 0)
 FONT       = cv2.FONT_HERSHEY_SIMPLEX
 FONT_SCALE = 0.6
@@ -59,6 +62,34 @@ def draw_box_with_label(img, box, label_text, box_color):
 def safe_class_name(class_id):
     return CLASS_NAMES[class_id] if 0 <= class_id < len(CLASS_NAMES) else str(class_id)
 
+def ensure_model_downloaded():
+    """Download best.pt into MODEL_PATH if it doesn't exist yet."""
+    os.makedirs(MODEL_DIR, exist_ok=True)
+
+    if os.path.exists(MODEL_PATH):
+        print(f"🔹 Model already present at {MODEL_PATH}", flush=True)
+        return
+
+    model_url = os.environ.get("BELUGA_MODEL_URL")
+    if not model_url:
+        raise RuntimeError(
+            "BELUGA_MODEL_URL environment variable is not set. "
+            "Set it on Render to a direct-download URL for best.pt."
+        )
+
+    print(f"🔹 Downloading model from {model_url} to {MODEL_PATH} ...", flush=True)
+    resp = requests.get(model_url, stream=True)
+    resp.raise_for_status()
+
+    tmp_path = MODEL_PATH + ".download"
+    with open(tmp_path, "wb") as f:
+        for chunk in resp.iter_content(chunk_size=8192):
+            if chunk:
+                f.write(chunk)
+
+    os.replace(tmp_path, MODEL_PATH)
+    print("✅ Model download complete.", flush=True)
+
 def main():
     # Expect: python beluga_track_server.py input_video.mp4 output_video.mp4 output.csv
     if len(sys.argv) != 4:
@@ -77,14 +108,18 @@ def main():
     os.makedirs(os.path.dirname(output_video), exist_ok=True)
     os.makedirs(os.path.dirname(output_csv), exist_ok=True)
 
-    print("🔹 Loading YOLO model...", flush=True)
-    if not os.path.exists(MODEL_PATH):
-        print(f"❌ Model not found at {MODEL_PATH}", file=sys.stderr)
+    # Make sure we have the model
+    try:
+        ensure_model_downloaded()
+    except Exception as e:
+        print(f"❌ Failed to prepare model: {e}", file=sys.stderr)
         sys.exit(1)
+
     if not os.path.exists(TRACKER_PATH):
         print(f"❌ Tracker config not found at {TRACKER_PATH}", file=sys.stderr)
         sys.exit(1)
 
+    print("🔹 Loading YOLO model...", flush=True)
     model = YOLO(MODEL_PATH)
 
     print(f"🔹 Opening video: {input_video}", flush=True)
@@ -100,7 +135,6 @@ def main():
 
     print(f"Video properties: {width}x{height} @ {fps:.2f} fps", flush=True)
 
-    # Video writer for annotated output
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     writer = cv2.VideoWriter(output_video, fourcc, fps, (width, height))
     if not writer.isOpened():
@@ -121,7 +155,6 @@ def main():
             frame_idx += 1
             t_sec = frame_idx / fps
 
-            # Run tracker
             results = model.track(frame, persist=True, tracker=TRACKER_PATH)
 
             if results:
@@ -136,63 +169,4 @@ def main():
 
                         x1, y1, x2, y2 = map(int, box.xyxy[0])
 
-                        # Smooth bounding box over time
-                        if track_id in smoothing_buffer:
-                            px1, py1, px2, py2 = smoothing_buffer[track_id]
-                            x1 = smooth(px1, x1); y1 = smooth(py1, y1)
-                            x2 = smooth(px2, x2); y2 = smooth(py2, y2)
-                        smoothing_buffer[track_id] = [x1, y1, x2, y2]
-
-                        whale_class = safe_class_name(class_id)
-                        beh_name = 'surfacing' if whale_class == 'Adult' else 'nursing'
-                        conf_val = float(box.conf[0]) if hasattr(box, "conf") and box.conf is not None else 0.0
-
-                        label_text = f"{whale_class} ID:{track_id}"
-                        box_color = CALF_BLUE if whale_class == "Calf" else ADULT_GREEN
-
-                        draw_box_with_label(frame, (x1, y1, x2, y2), label_text, box_color=box_color)
-
-                        tracking_rows.append([
-                            frame_idx, t_sec, track_id, whale_class, x1, y1, x2, y2, beh_name, conf_val
-                        ])
-
-            writer.write(frame)
-
-            # Periodically write CSV so we don't lose everything on a crash
-            if frame_idx % CSV_EVERY_N_FRAMES == 0 and tracking_rows:
-                df = pd.DataFrame(
-                    tracking_rows,
-                    columns=["Frame", "Time (s)", "Track_ID", "Class",
-                             "X1", "Y1", "X2", "Y2", "Behavior", "Conf"]
-                )
-                df.to_csv(output_csv, index=False)
-
-            if frame_idx % 50 == 0:
-                print(f"Processed frame {frame_idx}...", flush=True)
-
-        # Final CSV write
-        if tracking_rows:
-            df = pd.DataFrame(
-                tracking_rows,
-                columns=["Frame", "Time (s)", "Track_ID", "Class",
-                         "X1", "Y1", "X2", "Y2", "Behavior", "Conf"]
-            )
-            df.to_csv(output_csv, index=False)
-
-        print("✅ Tracking complete.")
-        print(f"✅ Annotated video saved: {output_video}")
-        print(f"✅ Tracking CSV saved:   {output_csv}")
-
-    except Exception as e:
-        print(f"❌ Error during tracking: {e}", file=sys.stderr)
-        cap.release()
-        writer.release()
-        sys.exit(1)
-
-    cap.release()
-    writer.release()
-    sys.exit(0)
-
-
-if __name__ == "__main__":
-    main()
+                        if
