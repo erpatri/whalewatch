@@ -1,8 +1,52 @@
-const fs = require('fs');
+// server.js
+const express = require('express');
+const cors = require('cors');
+const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 
-const UPLOAD_DIR = path.join(__dirname, 'uploads'); // same as before
+// ---- APP SETUP ----
+const app = express();
+const PORT = process.env.PORT || 10000;
 
+// Allow your local frontend (relax now, lock down later if you like)
+app.use(cors({ origin: '*' }));
+
+// ---- UPLOAD DIRECTORY ----
+const UPLOAD_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+
+// ---- MULTER CONFIG ----
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, UPLOAD_DIR);
+  },
+  filename: (req, file, cb) => {
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname) || '.mp4';
+    cb(null, unique + ext);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 500 * 1024 * 1024 // 500 MB
+  },
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith('video/')) {
+      return cb(new Error('Only video uploads are allowed'));
+    }
+    cb(null, true);
+  }
+});
+
+// ---- SERVE UPLOADED VIDEOS ----
+app.use('/videos', express.static(UPLOAD_DIR));
+
+// ---- DEBUG ROUTE TO SEE FILES ON RENDER ----
 app.get('/debug/videos', (req, res) => {
   fs.readdir(UPLOAD_DIR, (err, files) => {
     if (err) {
@@ -36,4 +80,37 @@ app.get('/debug/videos', (req, res) => {
     `;
     res.send(html);
   });
+});
+
+// ---- MAIN /track ENDPOINT ----
+app.post('/track', upload.single('video'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No video uploaded' });
+    }
+
+    console.log('Uploaded file:', {
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      filename: req.file.filename
+    });
+
+    // Just return the raw uploaded video for now
+    const streamUrl = `/videos/${req.file.filename}`;
+    res.json({ stream_url: streamUrl });
+  } catch (err) {
+    console.error('Error in /track:', err);
+    res.status(500).json({ error: 'Server error while processing video' });
+  }
+});
+
+// ---- HEALTH CHECK ----
+app.get('/', (req, res) => {
+  res.send('WhaleWatch backend is running');
+});
+
+// ---- START SERVER ----
+app.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
 });
