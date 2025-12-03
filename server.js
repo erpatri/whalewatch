@@ -123,19 +123,26 @@ app.post('/track', upload.single('video'), (req, res) => {
       filename: req.file.filename
     });
 
-    const inputPath = req.file.path; // e.g. uploads/12345.mov
+    const inputPath = req.file.path; // e.g. uploads/12345.mp4
     const baseName = path.parse(req.file.filename).name;
     const outputFilename = baseName + '_converted.mp4';
     const outputPath = path.join(UPLOAD_DIR, outputFilename);
 
-    // Spawn ffmpeg to convert to H.264/AAC mp4
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    if (ext === '.mp4') {
+      const streamUrl = `/videos/${req.file.filename}`;
+      console.log('Skipping ffmpeg; using original mp4:', streamUrl);
+      return res.json({ stream_url: streamUrl });
+    }
+
+    // otherwise fall through to ffmpeg...
     const ffmpegArgs = [
       '-y',
       '-i', inputPath,
-      '-vf', 'scale=720:-2',  
+      '-vf', 'scale=720:-2',
       '-c:v', 'libx264',
-      '-preset', 'superfast',  
-      '-crf', '25',           
+      '-preset', 'superfast',
+      '-crf', '25',
       '-c:a', 'aac',
       '-b:a', '96k',
       '-movflags', '+faststart',
@@ -156,16 +163,16 @@ app.post('/track', upload.single('video'), (req, res) => {
       }
 
       console.log('ffmpeg finished, output:', outputPath);
-
-      // Return URL of converted file (this is what the browser should play)
       const streamUrl = `/videos/${outputFilename}`;
       res.json({ stream_url: streamUrl });
     });
+
   } catch (err) {
     console.error('Error in /track:', err);
     res.status(500).json({ error: 'Server error while processing video' });
   }
 });
+
 
 // ---- HEALTH CHECK ----
 app.get('/', (req, res) => {
