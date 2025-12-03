@@ -34,7 +34,7 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: {
-    fileSize: 500 * 1024 * 1024 // 500 MB
+    fileSize: 2 * 1024 * 1024 * 1024 //2GB
   },
   fileFilter: (req, file, cb) => {
     if (!file.mimetype.startsWith('video/')) {
