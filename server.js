@@ -5,7 +5,6 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { spawn } = require('child_process');
 
 // ---- APP SETUP ----
 const app = express();
@@ -35,7 +34,7 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: {
-    fileSize: 2 * 1024 * 1024 * 1024 // 2GB
+    fileSize: 2 * 1024 * 1024 * 1024 //2GB
   },
   fileFilter: (req, file, cb) => {
     if (!file.mimetype.startsWith('video/')) {
@@ -109,77 +108,8 @@ app.get('/download/:name', (req, res) => {
   });
 });
 
-// ---- HELPER: RUN PYTHON TRACKER ON A VIDEO ----
-function runTrackerOnVideo(inputPath, baseName, res) {
-  const pythonScript = path.join(__dirname, 'beluga_track_server.py');
-
-  // Output filenames (in the same UPLOAD_DIR so they are served by /videos + /download)
-  const trackedVideoFilename = baseName + '_tracked.mp4';
-  const csvFilename = baseName + '_tracking.csv';
-
-  const trackedVideoPath = path.join(UPLOAD_DIR, trackedVideoFilename);
-  const csvPath = path.join(UPLOAD_DIR, csvFilename);
-
-  const pyArgs = [pythonScript, inputPath, trackedVideoPath, csvPath];
-  console.log('Running Python tracker:', pyArgs.join(' '));
-
-  // Use 'python' or 'python3' depending on your Render image.
-  // If you get ENOENT for 'python', change this to 'python3'.
-  const py = spawn('python', pyArgs, { cwd: __dirname });
-
-  let pyStdout = '';
-  let pyStderr = '';
-
-  py.stdout.on('data', (data) => {
-    const text = data.toString();
-    pyStdout += text;
-    console.log('[python]', text.trim());
-  });
-
-  py.stderr.on('data', (data) => {
-    const text = data.toString();
-    pyStderr += text;
-    console.error('[python err]', text.trim());
-  });
-
-  py.on('error', (err) => {
-    console.error('Failed to start Python process:', err);
-    if (!res.headersSent) {
-      return res
-        .status(500)
-        .json({ error: 'Failed to start whale tracking process', details: String(err) });
-    }
-  });
-
-  py.on('close', (code) => {
-    if (code !== 0) {
-      console.error('Python tracker exited with code', code, pyStderr);
-      if (!res.headersSent) {
-        return res.status(500).json({
-          error: 'Error running whale tracking on server',
-          details: pyStderr.slice(0, 2000) || `exit code ${code}`
-        });
-      }
-      return;
-    }
-
-    console.log('Tracking complete. Video:', trackedVideoPath, 'CSV:', csvPath);
-
-    const streamUrl = `/videos/${trackedVideoFilename}`;
-    const videoDownloadUrl = `/download/${trackedVideoFilename}`;
-    const csvDownloadUrl = `/download/${csvFilename}`;
-
-    if (!res.headersSent) {
-      res.json({
-        stream_url: streamUrl,       // used by <video> player
-        video_url: videoDownloadUrl, // for "Download video" button
-        csv_url: csvDownloadUrl      // for "Download data" button
-      });
-    }
-  });
-}
-
 // ---- MAIN /track ENDPOINT ----
+const { spawn } = require('child_process');
 app.post('/track', upload.single('video'), (req, res) => {
   try {
     if (!req.file) {
@@ -195,18 +125,17 @@ app.post('/track', upload.single('video'), (req, res) => {
 
     const inputPath = req.file.path; // e.g. uploads/12345.mp4
     const baseName = path.parse(req.file.filename).name;
-    const ext = path.extname(req.file.originalname).toLowerCase();
-
-    // If it's already an MP4, skip ffmpeg and go straight to tracking
-    if (ext === '.mp4') {
-      console.log('MP4 upload detected, skipping ffmpeg. Running tracker...');
-      return runTrackerOnVideo(inputPath, baseName, res);
-    }
-
-    // Otherwise convert to mp4, then run tracker on the converted file
     const outputFilename = baseName + '_converted.mp4';
     const outputPath = path.join(UPLOAD_DIR, outputFilename);
 
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    if (ext === '.mp4') {
+      const streamUrl = `/videos/${req.file.filename}`;
+      console.log('Skipping ffmpeg; using original mp4:', streamUrl);
+      return res.json({ stream_url: streamUrl });
+    }
+
+    // otherwise fall through to ffmpeg...
     const ffmpegArgs = [
       '-y',
       '-i', inputPath,
@@ -234,8 +163,8 @@ app.post('/track', upload.single('video'), (req, res) => {
       }
 
       console.log('ffmpeg finished, output:', outputPath);
-      const convertedBaseName = path.parse(outputFilename).name;
-      runTrackerOnVideo(outputPath, convertedBaseName, res);
+      const streamUrl = `/videos/${outputFilename}`;
+      res.json({ stream_url: streamUrl });
     });
 
   } catch (err) {
@@ -244,9 +173,10 @@ app.post('/track', upload.single('video'), (req, res) => {
   }
 });
 
+
 // ---- HEALTH CHECK ----
 app.get('/', (req, res) => {
-  res.send('WhaleWatch backend is running (YOLO tracker enabled)');
+  res.send('WhaleWatch backend is running');
 });
 
 // ---- START SERVER ----
