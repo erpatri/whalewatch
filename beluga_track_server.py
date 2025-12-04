@@ -1,262 +1,255 @@
-# beluga_track_server.py
+// server.js
 
-import sys
-import os
-import cv2
-import numpy as np
-import pandas as pd
-import requests
-from ultralytics import YOLO
+const express = require('express');
+const cors = require('cors');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const { spawn } = require('child_process');
 
-# ========= CONFIG =========
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+// ---- APP SETUP ----
+const app = express();
+const PORT = process.env.PORT || 10000;
 
-# Model will be stored in /tmp so it's writeable in cloud envs
-MODEL_DIR = os.environ.get("BELUGA_MODEL_DIR", "/tmp/beluga_models")
-MODEL_PATH = os.path.join(MODEL_DIR, "best.pt")
+// Allow your local/frontend origin (you can tighten this later)
+app.use(cors({ origin: '*' }));
 
-# Tracker YAML (small) can be committed to your repo
-TRACKER_PATH = os.path.join(BASE_DIR, "models", "bytetrack_whales.yaml")
+// ---- UPLOAD DIRECTORY ----
+const UPLOAD_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
 
-CLASS_NAMES = ["Adult", "Calf"]
-SMOOTHING_ALPHA = 0.30
-CSV_EVERY_N_FRAMES = 100
+// ---- MULTER CONFIG ----
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, UPLOAD_DIR);
+  },
+  filename: (req, file, cb) => {
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname) || '.mp4';
+    cb(null, unique + ext);
+  }
+});
 
-# === Colors (BGR) ===
-ADULT_GREEN = (147, 205, 108)
-CALF_BLUE   = (180, 163, 117)
-TEXT_COLOR = (0, 0, 0)
-FONT       = cv2.FONT_HERSHEY_SIMPLEX
-FONT_SCALE = 0.6
-TEXT_THICK = 1
-PAD_X      = 8
-PAD_Y      = 6
-LABEL_ALPHA = 0.85
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 2 * 1024 * 1024 * 1024 // 2GB
+  },
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith('video/')) {
+      return cb(new Error('Only video uploads are allowed'));
+    }
+    cb(null, true);
+  }
+});
 
-# ========= HELPERS =========
-def smooth(old, new, alpha=SMOOTHING_ALPHA):
-    return int(alpha * new + (1 - alpha) * old)
+// ---- SERVE UPLOADED VIDEOS ----
+// e.g. https://whalewatch.onrender.com/videos/<filename>.mp4
+app.use('/videos', express.static(UPLOAD_DIR));
 
-def alpha_rect(img, p1, p2, color, alpha=LABEL_ALPHA):
-    x1, y1 = p1; x2, y2 = p2
-    x1 = max(0, x1); y1 = max(0, y1)
-    x2 = min(img.shape[1] - 1, x2); y2 = min(img.shape[0] - 1, y2)
-    if x2 <= x1 or y2 <= y1:
-        return
-    overlay = img.copy()
-    cv2.rectangle(overlay, (x1, y1), (x2, y2), color, -1)
-    cv2.addWeighted(overlay, alpha, img, 1 - alpha, 0, dst=img)
+// ---- DEBUG PAGE TO SEE FILES ON RENDER ----
+// https://whalewatch.onrender.com/debug/videos
+app.get('/debug/videos', (req, res) => {
+  fs.readdir(UPLOAD_DIR, (err, files) => {
+    if (err) {
+      console.error('Error reading uploads folder:', err);
+      return res.status(500).send('Error reading uploads folder');
+    }
 
-def draw_box_with_label(img, box, label_text, box_color):
-    x1, y1, x2, y2 = box
-    cv2.rectangle(img, (x1, y1), (x2, y2), box_color, 2)
-    (tw, th), _ = cv2.getTextSize(label_text, FONT, FONT_SCALE, TEXT_THICK)
-    top = max(0, y1 - th - 2 * PAD_Y)
-    left = x1
-    right = min(img.shape[1] - 1, x1 + tw + 2 * PAD_X)
-    bottom = y1
-    alpha_rect(img, (left, top), (right, bottom), box_color, alpha=LABEL_ALPHA)
-    cv2.putText(img, label_text, (left + PAD_X, bottom - PAD_Y),
-                FONT, FONT_SCALE, TEXT_COLOR, TEXT_THICK, cv2.LINE_AA)
+    const rows = files.map(f => {
+      const fullPath = path.join(UPLOAD_DIR, f);
+      let size = 0;
+      try {
+        size = fs.statSync(fullPath).size;
+      } catch (e) {
+        console.error('stat error for', fullPath, e);
+      }
+      return { name: f, size };
+    });
 
-def safe_class_name(class_id):
-    return CLASS_NAMES[class_id] if 0 <= class_id < len(CLASS_NAMES) else str(class_id)
+    const html = `
+      <h1>Uploaded videos</h1>
+      <table border="1" cellpadding="6">
+        <tr><th>File</th><th>Size (bytes)</th><th>Links</th></tr>
+        ${rows.map(r =>
+          `<tr>
+            <td>${r.name}</td>
+            <td>${r.size}</td>
+            <td>
+              <a href="/videos/${r.name}" target="_blank">open</a> |
+              <a href="/download/${r.name}">download</a>
+            </td>
+          </tr>`
+        ).join('')}
+      </table>
+    `;
+    res.send(html);
+  });
+});
 
-def ensure_model_downloaded():
-    """Download best.pt into MODEL_PATH if it doesn't exist yet."""
-    os.makedirs(MODEL_DIR, exist_ok=True)
+// ---- RAW FILE DOWNLOAD ROUTE ----
+// https://whalewatch.onrender.com/download/<filename>
+app.get('/download/:name', (req, res) => {
+  const filename = req.params.name;
+  const filePath = path.join(UPLOAD_DIR, filename);
 
-    if os.path.exists(MODEL_PATH):
-        print(f"🔹 Model already present at {MODEL_PATH}", flush=True)
-        return
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send('File not found');
+  }
 
-    model_url = os.environ.get("BELUGA_MODEL_URL")
-    if not model_url:
-        raise RuntimeError(
-            "BELUGA_MODEL_URL environment variable is not set. "
-            "Set it on Render to a direct-download URL for best.pt."
-        )
+  res.download(filePath, filename, (err) => {
+    if (err) {
+      console.error('Error sending file for download:', err);
+      if (!res.headersSent) {
+        res.status(500).send('Error downloading file');
+      }
+    }
+  });
+});
 
-    print(f"🔹 Downloading model from {model_url} to {MODEL_PATH} ...", flush=True)
-    resp = requests.get(model_url, stream=True)
-    resp.raise_for_status()
+// ---- HELPER: RUN PYTHON TRACKER ON A VIDEO ----
+function runTrackerOnVideo(inputPath, baseName, res) {
+  const pythonScript = path.join(__dirname, 'beluga_track_server.py');
 
-    tmp_path = MODEL_PATH + ".download"
-    with open(tmp_path, "wb") as f:
-        for chunk in resp.iter_content(chunk_size=8192):
-            if chunk:
-                f.write(chunk)
+  // Output filenames (in the same UPLOAD_DIR so they are served by /videos + /download)
+  const trackedVideoFilename = baseName + '_tracked.mp4';
+  const csvFilename = baseName + '_tracking.csv';
 
-    os.replace(tmp_path, MODEL_PATH)
-    print("✅ Model download complete.", flush=True)
+  const trackedVideoPath = path.join(UPLOAD_DIR, trackedVideoFilename);
+  const csvPath = path.join(UPLOAD_DIR, csvFilename);
 
-def main():
-    # Expect: python beluga_track_server.py input_video.mp4 output_video.mp4 output_csv.csv
-    if len(sys.argv) != 4:
-        print("Usage: python beluga_track_server.py <input_video> <output_video> <output_csv>", file=sys.stderr)
-        sys.exit(1)
+  const pyArgs = [pythonScript, inputPath, trackedVideoPath, csvPath];
+  console.log('Running Python tracker:', pyArgs.join(' '));
 
-    input_video = sys.argv[1]
-    output_video = sys.argv[2]
-    output_csv = sys.argv[3]
+  // Use 'python' or 'python3' depending on your Render image.
+  // If you get ENOENT for 'python', change this to 'python3'.
+  const py = spawn('python', pyArgs, { cwd: __dirname });
 
-    if not os.path.exists(input_video):
-        print(f"❌ Input video does not exist: {input_video}", file=sys.stderr)
-        sys.exit(1)
+  let pyStdout = '';
+  let pyStderr = '';
 
-    # Ensure output folders exist
-    os.makedirs(os.path.dirname(output_video), exist_ok=True)
-    os.makedirs(os.path.dirname(output_csv), exist_ok=True)
+  py.stdout.on('data', (data) => {
+    const text = data.toString();
+    pyStdout += text;
+    console.log('[python]', text.trim());
+  });
 
-    # Make sure we have the model
-    try:
-        ensure_model_downloaded()
-    except Exception as e:
-        print(f"❌ Failed to prepare model: {e}", file=sys.stderr)
-        sys.exit(1)
+  py.stderr.on('data', (data) => {
+    const text = data.toString();
+    pyStderr += text;
+    console.error('[python err]', text.trim());
+  });
 
-    if not os.path.exists(TRACKER_PATH):
-        print(f"❌ Tracker config not found at {TRACKER_PATH}", file=sys.stderr)
-        sys.exit(1)
+  py.on('error', (err) => {
+    console.error('Failed to start Python process:', err);
+    if (!res.headersSent) {
+      return res
+        .status(500)
+        .json({ error: 'Failed to start whale tracking process', details: String(err) });
+    }
+  });
 
-    print("🔹 Loading YOLO model...", flush=True)
-    model = YOLO(MODEL_PATH)
+  py.on('close', (code) => {
+    if (code !== 0) {
+      console.error('Python tracker exited with code', code, pyStderr);
+      if (!res.headersSent) {
+        return res.status(500).json({
+          error: 'Error running whale tracking on server',
+          details: pyStderr.slice(0, 2000) || `exit code ${code}`
+        });
+      }
+      return;
+    }
 
-    print(f"🔹 Opening video: {input_video}", flush=True)
-    cap = cv2.VideoCapture(input_video)
-    if not cap.isOpened():
-        print(f"❌ Cannot open video: {input_video}", file=sys.stderr)
-        sys.exit(1)
+    console.log('Tracking complete. Video:', trackedVideoPath, 'CSV:', csvPath);
 
-    width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps    = cap.get(cv2.CAP_PROP_FPS) or 30.0
-    fps = float(fps)
+    const streamUrl = `/videos/${trackedVideoFilename}`;
+    const videoDownloadUrl = `/download/${trackedVideoFilename}`;
+    const csvDownloadUrl = `/download/${csvFilename}`;
 
-    print(f"Video properties: {width}x{height} @ {fps:.2f} fps", flush=True)
+    if (!res.headersSent) {
+      res.json({
+        stream_url: streamUrl,       // used by <video> player
+        video_url: videoDownloadUrl, // for "Download video" button
+        csv_url: csvDownloadUrl      // for "Download data" button
+      });
+    }
+  });
+}
 
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    writer = cv2.VideoWriter(output_video, fourcc, fps, (width, height))
-    if not writer.isOpened():
-        print(f"❌ Could not open writer for output video: {output_video}", file=sys.stderr)
-        cap.release()
-        sys.exit(1)
+// ---- MAIN /track ENDPOINT ----
+app.post('/track', upload.single('video'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No video uploaded' });
+    }
 
-    frame_idx = 0
-    smoothing_buffer = {}
-    tracking_rows = []
+    console.log('Uploaded file:', {
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      filename: req.file.filename
+    });
 
-        frame_idx = 0
-    smoothing_buffer = {}
-    tracking_rows = []
+    const inputPath = req.file.path; // e.g. uploads/12345.mp4
+    const baseName = path.parse(req.file.filename).name;
+    const ext = path.extname(req.file.originalname).toLowerCase();
 
-    # Optional: limit frames so it doesn't run forever on big videos
-    MAX_FRAMES = 300  # ~10s at 30fps; increase later if you want
+    // If it's already an MP4, skip ffmpeg and go straight to tracking
+    if (ext === '.mp4') {
+      console.log('MP4 upload detected, skipping ffmpeg. Running tracker...');
+      return runTrackerOnVideo(inputPath, baseName, res);
+    }
 
-    try:
-        while True:
-            ok, frame = cap.read()
-            if not ok:
-                break
+    // Otherwise convert to mp4, then run tracker on the converted file
+    const outputFilename = baseName + '_converted.mp4';
+    const outputPath = path.join(UPLOAD_DIR, outputFilename);
 
-            frame_idx += 1
-            t_sec = frame_idx / fps
+    const ffmpegArgs = [
+      '-y',
+      '-i', inputPath,
+      '-vf', 'scale=720:-2',
+      '-c:v', 'libx264',
+      '-preset', 'superfast',
+      '-crf', '25',
+      '-c:a', 'aac',
+      '-b:a', '96k',
+      '-movflags', '+faststart',
+      outputPath
+    ];
 
-            # Stop after MAX_FRAMES (so tracking completes in reasonable time)
-            if frame_idx > MAX_FRAMES:
-                print(f"Stopping early after {MAX_FRAMES} frames.", flush=True)
-                break
+    console.log('Running ffmpeg:', ffmpegArgs.join(' '));
+    const ffmpeg = spawn('ffmpeg', ffmpegArgs);
 
-            # OPTIONAL: process only every 2nd/3rd frame to speed things up
-            # if frame_idx % 2 != 0:
-            #     continue
+    ffmpeg.stderr.on('data', (data) => {
+      console.log('[ffmpeg]', data.toString());
+    });
 
-            # Small debug overlay so you know it's the processed video
-            cv2.putText(
-                frame,
-                f"Beluga tracking frame {frame_idx}",
-                (20, 30),
-                FONT,
-                0.7,
-                (0, 0, 255),
-                2,
-                cv2.LINE_AA,
-            )
+    ffmpeg.on('close', (code) => {
+      if (code !== 0) {
+        console.error('ffmpeg exited with code', code);
+        return res.status(500).json({ error: 'Error converting video on server' });
+      }
 
-            # Run YOLO tracking
-            results = model.track(frame, persist=True, tracker=TRACKER_PATH)
+      console.log('ffmpeg finished, output:', outputPath);
+      const convertedBaseName = path.parse(outputFilename).name;
+      runTrackerOnVideo(outputPath, convertedBaseName, res);
+    });
 
-            if results:
-                for r in results:
-                    if not hasattr(r, 'boxes') or r.boxes is None or len(r.boxes) == 0:
-                        continue
-                    for box in r.boxes:
-                        class_id = int(box.cls[0]) if box.cls is not None else 0
-                        track_id = int(box.id[0])  if box.id is not None else -1
-                        if track_id == -1:
-                            continue
+  } catch (err) {
+    console.error('Error in /track:', err);
+    res.status(500).json({ error: 'Server error while processing video' });
+  }
+});
 
-                        x1, y1, x2, y2 = map(int, box.xyxy[0])
+// ---- HEALTH CHECK ----
+app.get('/', (req, res) => {
+  res.send('WhaleWatch backend is running (YOLO tracker enabled)');
+});
 
-                        # Smooth box positions
-                        if track_id in smoothing_buffer:
-                            px1, py1, px2, py2 = smoothing_buffer[track_id]
-                            x1 = smooth(px1, x1); y1 = smooth(py1, y1)
-                            x2 = smooth(px2, x2); y2 = smooth(py2, y2)
-                        smoothing_buffer[track_id] = [x1, y1, x2, y2]
-
-                        whale_class = safe_class_name(class_id)
-                        beh_name = 'surfacing' if whale_class == 'Adult' else 'nursing'
-                        conf_val = float(box.conf[0]) if hasattr(box, "conf") and box.conf is not None else 0.0
-
-                        label_text = f"{whale_class} ID:{track_id}"
-                        box_color = CALF_BLUE if whale_class == "Calf" else ADULT_GREEN
-
-                        draw_box_with_label(frame, (x1, y1, x2, y2), label_text, box_color=box_color)
-
-                        tracking_rows.append([
-                            frame_idx, t_sec, track_id, whale_class,
-                            x1, y1, x2, y2, beh_name, conf_val
-                        ])
-
-            # 👉 THIS is critical: write the (possibly annotated) frame *inside* the loop
-            writer.write(frame)
-
-            # Periodic CSV write
-            if frame_idx % CSV_EVERY_N_FRAMES == 0 and tracking_rows:
-                df = pd.DataFrame(
-                    tracking_rows,
-                    columns=["Frame", "Time (s)", "Track_ID", "Class",
-                             "X1", "Y1", "X2", "Y2", "Behavior", "Conf"]
-                )
-                df.to_csv(output_csv, index=False)
-
-            if frame_idx % 50 == 0:
-                print(f"Processed frame {frame_idx}...", flush=True)
-
-        # Final CSV write after loop
-        if tracking_rows:
-            df = pd.DataFrame(
-                tracking_rows,
-                columns=["Frame", "Time (s)", "Track_ID", "Class",
-                         "X1", "Y1", "X2", "Y2", "Behavior", "Conf"]
-            )
-            df.to_csv(output_csv, index=False)
-
-        print("✅ Tracking complete.")
-        print(f"✅ Annotated video saved: {output_video}")
-        print(f"✅ Tracking CSV saved:   {output_csv}")
-
-
-    except Exception as e:
-        print(f"❌ Error during tracking: {e}", file=sys.stderr)
-        cap.release()
-        writer.release()
-        sys.exit(1)
-
-    cap.release()
-    writer.release()
-    sys.exit(0)
-
-if __name__ == "__main__":
-    main()
+// ---- START SERVER ----
+app.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
+});
